@@ -1,63 +1,46 @@
 import streamlit as st
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-import seaborn as sns
-import matplotlib.pyplot as plt
+from sklearn.metrics import accuracy_score
 
-# Title
-st.title("Gender Prediction Based on Name")
+# Auto-load dataset from a public GitHub URL
+DATA_URL = "https://raw.githubusercontent.com/your-username/your-repo/main/name_gender_dataset.csv"
+
+@st.cache_data
+def load_data():
+    return pd.read_csv(DATA_URL)
 
 # Load data
-uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
+df = load_data()
 
-    st.subheader("Dataset Preview")
-    st.dataframe(df.head())
+# Show data
+st.title("Gender Prediction by Name")
+st.write("Sample data from the dataset:")
+st.write(df.head())
 
-    # Show available columns
-    st.write("Columns in the dataset:", df.columns.tolist())
+# Prepare features
+vectorizer = CountVectorizer()
+X = vectorizer.fit_transform(df['name'])
+y = df['gender']
 
-    # Normalize column names
-    df.columns = df.columns.str.strip().str.lower()
+# Split dataset
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    if 'name' in df.columns and 'gender' in df.columns:
-        # Vectorize names
-        vectorizer = CountVectorizer()
-        X = vectorizer.fit_transform(df['name'].astype(str))
-        y = df['gender']
+# Train model
+model = MultinomialNB()
+model.fit(X_train, y_train)
 
-        # Split data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Evaluate model
+y_pred = model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+st.success(f"Model Accuracy: {accuracy:.2f}")
 
-        # Train model
-        model = LogisticRegression()
-        model.fit(X_train, y_train)
+# Input for prediction
+name_input = st.text_input("Enter a name to predict gender:")
 
-        # Evaluate model
-        y_pred = model.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-
-        st.subheader("Model Accuracy")
-        st.write(f"{accuracy * 100:.2f}%")
-
-        st.subheader("Classification Report")
-        st.text(classification_report(y_test, y_pred))
-
-        st.subheader("Confusion Matrix")
-        cm = confusion_matrix(y_test, y_pred)
-        fig, ax = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=model.classes_, yticklabels=model.classes_)
-        st.pyplot(fig)
-
-        st.subheader("Try It Yourself")
-        name_input = st.text_input("Enter a name to predict gender:")
-        if name_input:
-            input_vec = vectorizer.transform([name_input])
-            prediction = model.predict(input_vec)[0]
-            st.success(f"Predicted Gender: **{prediction}**")
-    else:
-        st.error("Required columns 'name' and 'gender' not found. Please check the column names in your file.")
+if name_input:
+    name_vector = vectorizer.transform([name_input])
+    prediction = model.predict(name_vector)[0]
+    st.info(f"Predicted Gender: **{prediction}**")
